@@ -19,7 +19,7 @@ export function useConnect() {
   const probeState = ref<'idle' | 'probing' | 'unreachable'>('idle')
   const probeTarget = ref('')
 
-  // Priority: runtime config (NUXT_PUBLIC_DEFAULT_BACKEND_URL) > config.js > fallback
+  // Priority: runtime config > config.js > HTTP(S) page origin > fallback.
   const defaultBackendURL = computed(() => {
     if (runtimeConfig.public.defaultBackendURL) {
       return runtimeConfig.public.defaultBackendURL as string
@@ -29,6 +29,12 @@ export function useConnect() {
       (window as any).__METACUBEXD_CONFIG__?.defaultBackendURL
     ) {
       return (window as any).__METACUBEXD_CONFIG__.defaultBackendURL as string
+    }
+    if (
+      typeof window !== 'undefined' &&
+      ['http:', 'https:'].includes(window.location.protocol)
+    ) {
+      return window.location.origin
     }
     return FALLBACK_BACKEND_URL
   })

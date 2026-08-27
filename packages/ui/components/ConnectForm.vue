@@ -18,7 +18,7 @@ const {
   autoLogin,
 } = useConnect()
 
-const formData = reactive({ url: '', secret: '' })
+const formData = reactive({ url: defaultBackendURL.value, secret: '' })
 
 // Once the user touches the form, a lucky background default-probe hit must not
 // navigate away from under them.
