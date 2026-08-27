@@ -524,7 +524,7 @@ describe('stores/proxies latency state', () => {
     ])
   })
 
-  it('reuses successful provider history when the proxy view history contains only failed probes', async () => {
+  it('keeps an explicit failed reading for the requested url instead of reusing another url', async () => {
     const store = useProxiesStore()
     apiMocks.fetchProxiesAPI.mockResolvedValue({
       proxies: {
@@ -536,8 +536,8 @@ describe('stores/proxies latency state', () => {
               history: [{ time: '2026-05-19T13:17:31.000Z', delay: 506 }],
             },
           },
-          // A failed global health check is still a non-empty history. It must
-          // not hide the successful provider series from the stability bar.
+          // The requested url was checked and failed. A successful provider
+          // check for another url must not make this url look available.
           history: [
             { time: '2026-05-19T13:16:31.000Z', delay: 0 },
             { time: '2026-05-19T13:17:31.000Z', delay: 0 },
@@ -549,9 +549,10 @@ describe('stores/proxies latency state', () => {
     await store.fetchProxies()
     await nextTick()
 
-    expect(store.getLatencyByName('node-a', null)).toBe(506)
+    expect(store.getLatencyByName('node-a', null)).toBe(0)
     expect(store.getLatencyHistoryByName('node-a', null)).toEqual([
-      { time: '2026-05-19T13:17:31.000Z', delay: 506 },
+      { time: '2026-05-19T13:16:31.000Z', delay: 0 },
+      { time: '2026-05-19T13:17:31.000Z', delay: 0 },
     ])
   })
 

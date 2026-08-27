@@ -109,10 +109,8 @@ export const useProxiesStore = defineStore('proxies', () => {
       const isDefaultTestUrlLatencyExists =
         defaultTestUrl in result.allTestUrlLatency
 
-      if (!isDefaultTestUrlLatencyExists) {
-        const delay =
-          proxy.history?.at(-1)?.delay ??
-          configStore.latencyQualityMap.NOT_CONNECTED
+      if (!isDefaultTestUrlLatencyExists && proxy.history?.length) {
+        const delay = proxy.history.at(-1)!.delay
         result.allTestUrlLatency[defaultTestUrl] = delay
         result.allTestUrlLatencyHistory[defaultTestUrl] = proxy.history
       }
@@ -141,22 +139,18 @@ export const useProxiesStore = defineStore('proxies', () => {
   const hasSuccessfulLatency = (history: Proxy['history'] | undefined) =>
     history?.some(({ delay }) => delay > 0) ?? false
 
-  // Successful latency series for the requested url, else any successful
-  // series the node recorded under another url. A non-empty series can still
-  // contain only failed probes (delay 0); treating that as usable makes the
-  // stability bar stay gray while the pill falls back to a provider reading.
-  // If nothing succeeded anywhere, keep the requested failure history so the
-  // UI can still show those attempts.
+  // An explicit history for the requested url is authoritative, including a
+  // series of failed probes. Only fall back when that url was never tested.
   const pickLatencyHistory = (
     histories: Record<string, Proxy['history'] | undefined>,
     finalTestUrl: string,
   ) => {
     const exact = histories[finalTestUrl]
-    if (hasSuccessfulLatency(exact)) return exact
+    if (exact?.length) return exact
     for (const series of Object.values(histories)) {
       if (hasSuccessfulLatency(series)) return series
     }
-    return exact?.length ? exact : undefined
+    return undefined
   }
 
   const replaceNodeLatency = (
@@ -433,23 +427,24 @@ export const useProxiesStore = defineStore('proxies', () => {
     const nodeLatencies = latencyMapValue[nowName]
     const groupLatencies = latencyMapValue[name]
 
-    // A successful reading for the requested test url always wins.
-    const direct = nodeLatencies?.[finalTestUrl]
-    if (direct) return direct
-    const groupDirect = groupLatencies?.[finalTestUrl]
-    if (groupDirect) return groupDirect
+    // An explicit reading for the requested url is authoritative. In
+    // particular, NOT_CONNECTED (0) must not be replaced by a successful
+    // provider check for a different url.
+    if (nodeLatencies && finalTestUrl in nodeLatencies) {
+      return nodeLatencies[finalTestUrl]
+    }
+    if (groupLatencies && finalTestUrl in groupLatencies) {
+      return groupLatencies[finalTestUrl]
+    }
 
-    // The requested url has no successful reading — either the key is missing,
-    // or it's present but NOT_CONNECTED (0). The latter happens when a node was
-    // only ever health-checked under its provider's own test url: the proxies
-    // view queries the global url and would otherwise show "---" forever even
-    // though a real measurement exists. Reuse any successful reading instead.
+    // The requested url was never measured. Reuse another successful reading
+    // so views without a per-group test url can still show useful data.
     const reused =
       findPositiveLatency(nodeLatencies) ?? findPositiveLatency(groupLatencies)
     if (reused != null) return reused
 
     // Nothing succeeded anywhere — surface NOT_CONNECTED so the pill shows "---".
-    return direct ?? groupDirect ?? configStore.latencyQualityMap.NOT_CONNECTED
+    return configStore.latencyQualityMap.NOT_CONNECTED
   }
 
   // Get latency history by name
@@ -460,8 +455,8 @@ export const useProxiesStore = defineStore('proxies', () => {
       proxyNodeMap.value[nowProxyNodeName]?.latencyTestHistory || {}
     const proxyHistories = proxyNodeMap.value[name]?.latencyTestHistory || {}
 
-    // Prefer the requested url's series; otherwise reuse any non-empty series
-    // the node recorded under another url so the bar mirrors getLatencyByName.
+    // Prefer the requested url's series; only reuse another successful series
+    // when the requested url has never been tested.
     return (
       pickLatencyHistory(nowHistories, finalTestUrl) ??
       pickLatencyHistory(proxyHistories, finalTestUrl) ??
