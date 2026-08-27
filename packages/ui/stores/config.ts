@@ -263,7 +263,7 @@ export const useConfigStore = defineStore('config', () => {
 
   const resolveLatencyTestUrl = (
     groupTestUrl?: string | null,
-    testType?: 'default' | 'docker-registry',
+    testType?: 'default' | 'docker-registry' | 'claude-test',
   ) =>
     testType && testType !== 'default'
       ? groupTestUrl || urlForLatencyTest.value

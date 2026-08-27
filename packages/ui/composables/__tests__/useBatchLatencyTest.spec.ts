@@ -26,7 +26,7 @@ const mockConfigStore = {
   latencyTestTimeoutDuration: 5000,
   resolveLatencyTestUrl: (
     groupTestUrl?: string | null,
-    testType?: 'default' | 'docker-registry',
+    testType?: 'default' | 'docker-registry' | 'claude-test',
   ) =>
     testType && testType !== 'default'
       ? groupTestUrl || mockConfigStore.urlForLatencyTest
@@ -55,7 +55,7 @@ const mockProxiesStore: {
     name: string
     all: string[]
     testUrl?: string
-    testType?: 'default' | 'docker-registry'
+    testType?: 'default' | 'docker-registry' | 'claude-test'
   }[]
   proxyProviders: { name: string }[]
 } = {

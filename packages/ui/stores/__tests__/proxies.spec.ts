@@ -37,7 +37,7 @@ const mockConfigStore = {
   urlForLatencyTest: 'https://latency.test/default',
   resolveLatencyTestUrl: (
     groupTestUrl?: string | null,
-    testType?: 'default' | 'docker-registry',
+    testType?: 'default' | 'docker-registry' | 'claude-test',
   ) =>
     testType && testType !== 'default'
       ? groupTestUrl || mockConfigStore.urlForLatencyTest
@@ -331,6 +331,7 @@ describe('stores/proxies latency state', () => {
       'docker-registry',
       'https://registry-1.docker.io/v2/library/python/manifests/3.12-slim',
     ],
+    ['claude-test', 'https://claude.ai/'],
   ] as const)(
     'refreshes %s group state when the backend reports that every node failed',
     async (testType, testUrl) => {
@@ -775,6 +776,7 @@ describe('stores/proxies read model', () => {
   })
 
   it.each([
+    ['claude-test', 'https://claude.ai/'],
     [
       'docker-registry',
       'https://registry-1.docker.io/v2/library/python/manifests/3.12-slim',

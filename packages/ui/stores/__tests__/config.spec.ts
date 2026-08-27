@@ -129,7 +129,7 @@ describe('resolveLatencyTestUrl', () => {
     )
   })
 
-  it.each(['docker-registry'] as const)(
+  it.each(['docker-registry', 'claude-test'] as const)(
     'does not override a %s group URL in dashboard mode',
     (testType) => {
       const store = useConfigStore()
