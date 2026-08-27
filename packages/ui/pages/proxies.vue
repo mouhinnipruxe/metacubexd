@@ -174,7 +174,15 @@ const formatBytes = (bytes: number) => byteSize(bytes).toString()
 
 // Get recommended node for a proxy group
 const getRecommendedNode = (proxyGroup: ProxyType) => {
-  const nodeNames = proxyGroup.all ?? []
+  const nodeNames = filterProxiesByAvailability({
+    proxyNames: proxyGroup.all ?? [],
+    enabled: true,
+    testUrl: proxyGroup.testUrl || null,
+    getLatencyByName: proxiesStore.getLatencyByName,
+    isProxyGroup: proxiesStore.isProxyGroup,
+    latencyQualityMap: configStore.latencyQualityMap,
+    urlForLatencyTest: configStore.urlForLatencyTest,
+  })
   return findRecommendedNode(
     nodeNames,
     nodeRecommendationStore.performanceData,

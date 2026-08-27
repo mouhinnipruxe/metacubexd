@@ -42,6 +42,13 @@ const nodePerformance = computed(() =>
 
 // Node score
 const nodeScore = computed(() => {
+  if (
+    proxiesStore.getLatencyByName(props.proxyName, props.testUrl) ===
+    configStore.latencyQualityMap.NOT_CONNECTED
+  ) {
+    return null
+  }
+
   const perf = nodePerformance.value
   if (!perf || perf.history.length === 0) return null
   return calculateNodeScore(perf, nodeRecommendationStore.scoringWeights)
