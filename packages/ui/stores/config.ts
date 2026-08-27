@@ -103,7 +103,7 @@ export const useConfigStore = defineStore('config', () => {
   const enableTwemoji = useLocalStorage('enableTwemoji', false)
 
   // Sidebar expanded state (PC only)
-  const sidebarExpanded = useLocalStorage('sidebarExpanded', false)
+  const sidebarExpanded = useLocalStorage('sidebarExpanded', true)
 
   // Mobile navigation type (bottom nav vs side drawer)
   const useMobileBottomNav = useLocalStorage('useMobileBottomNav', true)

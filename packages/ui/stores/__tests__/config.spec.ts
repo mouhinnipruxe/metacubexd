@@ -25,6 +25,27 @@ const localStorageMock = (() => {
 
 vi.stubGlobal('localStorage', localStorageMock)
 
+describe('sidebar expanded state', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorageMock.clear()
+  })
+
+  it('defaults to expanded when no persisted value is present', () => {
+    const store = useConfigStore()
+
+    expect(store.sidebarExpanded).toBe(true)
+  })
+
+  it('preserves a persisted collapsed state', () => {
+    localStorage.setItem('sidebarExpanded', 'false')
+
+    const store = useConfigStore()
+
+    expect(store.sidebarExpanded).toBe(false)
+  })
+})
+
 describe('proxies display mode migration', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
