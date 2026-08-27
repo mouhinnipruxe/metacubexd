@@ -403,6 +403,36 @@ describe('stores/proxies latency state', () => {
     },
   )
 
+  it('keeps successful group latency results when the following proxy refresh fails', async () => {
+    const results = { 'node-a': 88, 'node-b': 120 }
+    apiMocks.proxyGroupLatencyTestAPI.mockResolvedValue(results)
+    apiMocks.fetchProxiesAPI.mockRejectedValueOnce({
+      response: { status: 504 },
+    })
+
+    const store = useProxiesStore()
+    store.proxies = [
+      {
+        name: 'GROUP',
+        type: 'Selector',
+        all: ['node-a', 'node-b'],
+        extra: {},
+        history: [],
+        hidden: false,
+        udp: false,
+        xudp: false,
+        tfo: false,
+        now: 'node-a',
+      } as never,
+    ]
+
+    await store.proxyGroupLatencyTest('GROUP')
+
+    expect(apiMocks.fetchProxiesAPI).toHaveBeenCalledOnce()
+    expect(recordBatchResultsMock).toHaveBeenCalledOnce()
+    expect(recordBatchResultsMock).toHaveBeenCalledWith(results)
+  })
+
   it('batch-tests every provider node via the provider health-check endpoint', async () => {
     apiMocks.proxyLatencyTestAPI
       .mockResolvedValueOnce({ delay: 120 })

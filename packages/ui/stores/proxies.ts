@@ -123,7 +123,7 @@ export const useProxiesStore = defineStore('proxies', () => {
   }
 
   const normalizeLatencyTestUrl = (
-    testUrl: string | null,
+    testUrl?: string | null,
     testType?: Proxy['testType'],
   ) => {
     const resolvedTestType =
@@ -438,7 +438,7 @@ export const useProxiesStore = defineStore('proxies', () => {
     name: string,
     testUrl: string | null,
     testType?: Proxy['testType'],
-  ) => {
+  ): number => {
     const finalTestUrl = normalizeLatencyTestUrl(testUrl, testType)
     const latencyMapValue = latencyMap.value
     const nowName = getNowProxyNodeName(name)
@@ -450,10 +450,10 @@ export const useProxiesStore = defineStore('proxies', () => {
     // particular, NOT_CONNECTED (0) must not be replaced by a successful
     // provider check for a different url.
     if (nodeLatencies && finalTestUrl in nodeLatencies) {
-      return nodeLatencies[finalTestUrl]
+      return nodeLatencies[finalTestUrl]!
     }
     if (groupLatencies && finalTestUrl in groupLatencies) {
-      return groupLatencies[finalTestUrl]
+      return groupLatencies[finalTestUrl]!
     }
 
     // The requested url was never measured. Reuse another successful reading
@@ -622,43 +622,52 @@ export const useProxiesStore = defineStore('proxies', () => {
     const memberNames = currentProxyGroup?.all ?? [proxyGroupName]
 
     try {
-      const results = await proxyGroupLatencyTestAPI(
-        proxyGroupName,
-        finalTestUrl,
-        currentProxyGroup?.timeout ?? configStore.latencyTestTimeoutDuration,
-      )
-      await fetchProxies()
-      recordLatencyTestResults(results, finalTestUrl)
-      nodeRecommendationStore.recordBatchResults(results)
-    } catch (error) {
-      const responseStatus =
-        typeof error === 'object' && error !== null && 'response' in error
-          ? (error as { response?: { status?: number } }).response?.status
-          : undefined
-      let stateRefreshed = false
-      if (responseStatus === 504) {
-        try {
-          await fetchProxies()
-          stateRefreshed = true
-        } catch {
-          /* empty */
+      let results: Record<string, number>
+      try {
+        results = await proxyGroupLatencyTestAPI(
+          proxyGroupName,
+          finalTestUrl,
+          currentProxyGroup?.timeout ?? configStore.latencyTestTimeoutDuration,
+        )
+      } catch (error) {
+        const responseStatus =
+          typeof error === 'object' && error !== null && 'response' in error
+            ? (error as { response?: { status?: number } }).response?.status
+            : undefined
+        let stateRefreshed = false
+        if (responseStatus === 504) {
+          try {
+            await fetchProxies()
+            stateRefreshed = true
+          } catch {
+            /* empty */
+          }
         }
+
+        // A backend 504 means every group member failed, so fetchProxies above
+        // replaces stale values with the backend state. For a transport failure,
+        // keep the last known values and only append failure datapoints.
+        const failedDelay = configStore.latencyQualityMap.NOT_CONNECTED
+        const failedResults: Record<string, number> = {}
+        for (const memberName of memberNames) {
+          const resolved = getNowProxyNodeName(memberName)
+          if (!resolved) continue
+          failedResults[resolved] = failedDelay
+          if (!stateRefreshed) {
+            appendLatencyHistoryEntry(resolved, finalTestUrl, failedDelay)
+          }
+        }
+        nodeRecommendationStore.recordBatchResults(failedResults)
+        return
       }
 
-      // A backend 504 means every group member failed, so fetchProxies above
-      // replaces stale values with the backend state. For a transport failure,
-      // keep the last known values and only append failure datapoints.
-      const failedDelay = configStore.latencyQualityMap.NOT_CONNECTED
-      const failedResults: Record<string, number> = {}
-      for (const memberName of memberNames) {
-        const resolved = getNowProxyNodeName(memberName)
-        if (!resolved) continue
-        failedResults[resolved] = failedDelay
-        if (!stateRefreshed) {
-          appendLatencyHistoryEntry(resolved, finalTestUrl, failedDelay)
-        }
+      try {
+        await fetchProxies()
+      } catch {
+        /* empty */
       }
-      nodeRecommendationStore.recordBatchResults(failedResults)
+      recordLatencyTestResults(results, finalTestUrl)
+      nodeRecommendationStore.recordBatchResults(results)
     } finally {
       proxyGroupLatencyTestingMap.value[proxyGroupName] = false
     }
