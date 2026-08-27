@@ -9,6 +9,7 @@ import {
 export interface UseProxyNodeOptions {
   providerName?: MaybeRefOrGetter<string>
   groupName?: MaybeRefOrGetter<string>
+  testType?: MaybeRefOrGetter<Proxy['testType']>
 }
 
 // The proxy-node read model: the presentation folds the four ProxyNode*
@@ -42,7 +43,11 @@ export function useProxyNode(
   })
 
   const latency = computed(() =>
-    proxiesStore.getLatencyByName(toValue(proxyName), toValue(testUrl)),
+    proxiesStore.getLatencyByName(
+      toValue(proxyName),
+      toValue(testUrl),
+      options.testType ? toValue(options.testType) : undefined,
+    ),
   )
 
   const latencyColorClass = computed(() =>
@@ -53,7 +58,11 @@ export function useProxyNode(
 
   const stabilityBar = computed(() =>
     proxiesStore
-      .getLatencyHistoryByName(toValue(proxyName), toValue(testUrl))
+      .getLatencyHistoryByName(
+        toValue(proxyName),
+        toValue(testUrl),
+        options.testType ? toValue(options.testType) : undefined,
+      )
       .map((result) => ({
         colorClass: result.delay
           ? getLatencyClassName(result.delay, configStore.latencyQualityMap)
@@ -63,7 +72,11 @@ export function useProxyNode(
 
   const historyReversed = computed<Proxy['history']>(() =>
     proxiesStore
-      .getLatencyHistoryByName(toValue(proxyName), toValue(testUrl))
+      .getLatencyHistoryByName(
+        toValue(proxyName),
+        toValue(testUrl),
+        options.testType ? toValue(options.testType) : undefined,
+      )
       .toReversed(),
   )
 
@@ -75,6 +88,12 @@ export function useProxyNode(
   )
 
   const runLatencyTest = () => {
+    const groupName = options.groupName ? toValue(options.groupName) : ''
+    if (groupName) {
+      proxiesStore.proxyGroupLatencyTest(groupName)
+      return
+    }
+
     proxiesStore.proxyLatencyTest(
       toValue(proxyName),
       node.value?.provider ?? '',

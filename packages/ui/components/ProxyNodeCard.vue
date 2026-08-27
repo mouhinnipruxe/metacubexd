@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { Proxy } from '~/types'
 import { IconCircleCheckFilled, IconStar } from '@tabler/icons-vue'
 import dayjs from 'dayjs'
 import { getLatencyClassName } from '~/utils'
@@ -12,6 +13,7 @@ import {
 interface Props {
   proxyName: string
   testUrl: string | null
+  testType?: Proxy['testType']
   timeout: number | null
   isSelected?: boolean
   isRecommended?: boolean
@@ -43,8 +45,11 @@ const nodePerformance = computed(() =>
 // Node score
 const nodeScore = computed(() => {
   if (
-    proxiesStore.getLatencyByName(props.proxyName, props.testUrl) ===
-    configStore.latencyQualityMap.NOT_CONNECTED
+    proxiesStore.getLatencyByName(
+      props.proxyName,
+      props.testUrl,
+      props.testType,
+    ) === configStore.latencyQualityMap.NOT_CONNECTED
   ) {
     return null
   }
@@ -66,7 +71,11 @@ const lastTestTimeFormatted = computed(() => {
 // always agree.
 const latencyTrendData = computed(() =>
   computeLatencyTrend(
-    proxiesStore.getLatencyHistoryByName(props.proxyName, props.testUrl),
+    proxiesStore.getLatencyHistoryByName(
+      props.proxyName,
+      props.testUrl,
+      props.testType,
+    ),
   ),
 )
 
@@ -94,7 +103,11 @@ const {
   () => props.proxyName,
   () => props.testUrl,
   () => props.timeout,
-  { providerName: () => props.providerName, groupName: () => props.groupName },
+  {
+    providerName: () => props.providerName,
+    groupName: () => props.groupName,
+    testType: () => props.testType,
+  },
 )
 
 // Anchor element for the lazily-mounted tooltip
@@ -319,6 +332,7 @@ function handleLatencyTest() {
           <Latency
             :proxy-name="proxyName"
             :test-url="testUrl"
+            :test-type="testType"
             :provider-name="providerName"
             :group-name="groupName"
             :class="{ 'animate-pulse': isTesting }"

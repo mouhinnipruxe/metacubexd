@@ -157,7 +157,11 @@ watch(activeName, () => {
 onMounted(() => nextTick(() => scrollSelectedIntoView('auto')))
 
 function aliveCount(group: ProxyType) {
-  return proxiesStore.aliveNodeNames(group.all ?? []).length
+  return proxiesStore.aliveNodeNames(
+    group.all ?? [],
+    group.testUrl || null,
+    group.testType,
+  ).length
 }
 </script>
 
@@ -366,8 +370,10 @@ function aliveCount(group: ProxyType) {
           :key="name"
           :proxy-name="name"
           :test-url="activeGroup.testUrl || null"
+          :test-type="activeGroup.testType"
           :timeout="activeGroup.timeout ?? null"
           :is-selected="activeGroup.now === name"
+          :group-name="activeGroup.name"
           :data-selected="activeGroup.now === name ? 'true' : undefined"
           @click="proxiesStore.selectProxyInGroup(activeGroup, name)"
         />

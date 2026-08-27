@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import type { Proxy } from '~/types'
 import { getLatencyClassName } from '~/utils'
 
 interface Props {
   proxyName: string
   testUrl: string | null
+  testType?: Proxy['testType']
   providerName?: string
   groupName?: string
   class?: string | Record<string, boolean>
@@ -30,7 +32,7 @@ const { t } = useI18n()
 const extraClass = computed(() => props.class || '')
 
 const latency = computed(() =>
-  proxiesStore.getLatencyByName(props.proxyName, props.testUrl),
+  proxiesStore.getLatencyByName(props.proxyName, props.testUrl, props.testType),
 )
 
 const isTesting = computed(() =>

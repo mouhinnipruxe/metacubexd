@@ -174,11 +174,13 @@ const formatBytes = (bytes: number) => byteSize(bytes).toString()
 
 // Get recommended node for a proxy group
 const getRecommendedNode = (proxyGroup: ProxyType) => {
+  const getGroupLatency = (name: string, testUrl: string | null) =>
+    proxiesStore.getLatencyByName(name, testUrl, proxyGroup.testType)
   const nodeNames = filterProxiesByAvailability({
     proxyNames: proxyGroup.all ?? [],
     enabled: true,
     testUrl: proxyGroup.testUrl || null,
-    getLatencyByName: proxiesStore.getLatencyByName,
+    getLatencyByName: getGroupLatency,
     isProxyGroup: proxiesStore.isProxyGroup,
     latencyQualityMap: configStore.latencyQualityMap,
     urlForLatencyTest: configStore.urlForLatencyTest,
@@ -260,11 +262,13 @@ const tabs = computed(() => [
 
 function getSortedProxyNames(proxyGroup: ProxyType) {
   const orderingType = configStore.proxiesOrderingType
+  const getGroupLatency = (name: string, testUrl: string | null) =>
+    proxiesStore.getLatencyByName(name, testUrl, proxyGroup.testType)
   const sorted = sortProxiesByOrderingType({
     proxyNames: proxyGroup.all ?? [],
     orderingType,
     testUrl: proxyGroup.testUrl || null,
-    getLatencyByName: proxiesStore.getLatencyByName,
+    getLatencyByName: getGroupLatency,
     isProxyGroup: proxiesStore.isProxyGroup,
     latencyQualityMap: configStore.latencyQualityMap,
     urlForLatencyTest: configStore.urlForLatencyTest,
@@ -275,7 +279,7 @@ function getSortedProxyNames(proxyGroup: ProxyType) {
     proxyNames: sorted,
     enabled: configStore.hideUnAvailableProxies,
     testUrl: proxyGroup.testUrl || null,
-    getLatencyByName: proxiesStore.getLatencyByName,
+    getLatencyByName: getGroupLatency,
     isProxyGroup: proxiesStore.isProxyGroup,
     latencyQualityMap: configStore.latencyQualityMap,
     urlForLatencyTest: configStore.urlForLatencyTest,
@@ -499,7 +503,12 @@ const ProxyGroupTitle = defineComponent({
     const recommendedNode = computed(() => getRecommendedNode(props.proxyGroup))
     const totalProxyCount = computed(() => props.proxyGroup.all?.length ?? 0)
     const aliveProxyCount = computed(
-      () => proxiesStore.aliveNodeNames(props.proxyGroup.all ?? []).length,
+      () =>
+        proxiesStore.aliveNodeNames(
+          props.proxyGroup.all ?? [],
+          props.proxyGroup.testUrl || null,
+          props.proxyGroup.testType,
+        ).length,
     )
     const hasRecommendation = computed(
       () =>
@@ -697,6 +706,7 @@ const ProxyGroupTitle = defineComponent({
             proxyNameList: props.sortedProxyNames,
             now: props.proxyGroup.now,
             testUrl: props.proxyGroup.testUrl || null,
+            testType: props.proxyGroup.testType,
             onSelect: (name: string) =>
               proxiesStore.selectProxyInGroup(props.proxyGroup, name),
           }),
@@ -789,23 +799,23 @@ const ProxyNodes = defineComponent({
     return () => {
       const names = props.sortedProxyNames
       const Comp = nodeComponentFor(configStore.proxiesDisplayMode)
-      // isRecommended/groupName are card-only props. ListItem/Chip/TableRow don't
-      // declare them, and Vue turns undeclared props into fallthrough DOM
-      // attributes — so only pass them to the card to keep other rows' markup clean.
+      // isRecommended is card-only. Vue turns undeclared props into fallthrough
+      // DOM attributes, so only pass it to the card.
       const isCard = Comp === ProxyNodeCard
       const children = names.slice(0, renderCount.value).map((proxyName) =>
         h(Comp, {
           key: proxyName,
           proxyName,
           testUrl: props.proxyGroup.testUrl || null,
+          testType: props.proxyGroup.testType,
           timeout: props.proxyGroup.timeout ?? null,
           isSelected: props.proxyGroup.now === proxyName,
+          groupName: props.proxyGroup.name,
           'data-proxy-group': props.proxyGroup.name,
           'data-selected': props.proxyGroup.now === proxyName,
           ...(isCard
             ? {
                 isRecommended: recommendedNode.value === proxyName,
-                groupName: props.proxyGroup.name,
               }
             : {}),
           onClick: () =>

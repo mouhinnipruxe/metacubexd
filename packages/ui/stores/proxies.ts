@@ -75,7 +75,7 @@ export const useProxiesStore = defineStore('proxies', () => {
 
   // Helper: Get latency from proxy
   const getLatencyFromProxy = (
-    proxy: Pick<Proxy, 'extra' | 'history' | 'testUrl'>,
+    proxy: Pick<Proxy, 'extra' | 'history' | 'testUrl' | 'testType'>,
     fallbackDefault = true,
   ) => {
     const extra = (proxy.extra || {}) as Record<
@@ -105,7 +105,10 @@ export const useProxiesStore = defineStore('proxies', () => {
     )
 
     if (fallbackDefault) {
-      const defaultTestUrl = configStore.resolveLatencyTestUrl(proxy.testUrl)
+      const defaultTestUrl = configStore.resolveLatencyTestUrl(
+        proxy.testUrl,
+        proxy.testType,
+      )
       const isDefaultTestUrlLatencyExists =
         defaultTestUrl in result.allTestUrlLatency
 
@@ -119,8 +122,20 @@ export const useProxiesStore = defineStore('proxies', () => {
     return result
   }
 
-  const normalizeLatencyTestUrl = (testUrl: string | null) =>
-    configStore.resolveLatencyTestUrl(testUrl)
+  const normalizeLatencyTestUrl = (
+    testUrl: string | null,
+    testType?: Proxy['testType'],
+  ) => {
+    const resolvedTestType =
+      testType ??
+      proxies.value.find(
+        (proxy) =>
+          proxy.testUrl === testUrl &&
+          proxy.testType &&
+          proxy.testType !== 'default',
+      )?.testType
+    return configStore.resolveLatencyTestUrl(testUrl, resolvedTestType)
+  }
 
   // First positive (successful) latency among a node's per-test-url readings.
   // NOT_CONNECTED (0) reads are treated as "no data" and skipped, so a node
@@ -419,8 +434,12 @@ export const useProxiesStore = defineStore('proxies', () => {
   }
 
   // Get latency by name
-  const getLatencyByName = (name: string, testUrl: string | null) => {
-    const finalTestUrl = configStore.resolveLatencyTestUrl(testUrl)
+  const getLatencyByName = (
+    name: string,
+    testUrl: string | null,
+    testType?: Proxy['testType'],
+  ) => {
+    const finalTestUrl = normalizeLatencyTestUrl(testUrl, testType)
     const latencyMapValue = latencyMap.value
     const nowName = getNowProxyNodeName(name)
 
@@ -448,8 +467,12 @@ export const useProxiesStore = defineStore('proxies', () => {
   }
 
   // Get latency history by name
-  const getLatencyHistoryByName = (name: string, testUrl: string | null) => {
-    const finalTestUrl = configStore.resolveLatencyTestUrl(testUrl)
+  const getLatencyHistoryByName = (
+    name: string,
+    testUrl: string | null,
+    testType?: Proxy['testType'],
+  ) => {
+    const finalTestUrl = normalizeLatencyTestUrl(testUrl, testType)
     const nowProxyNodeName = getNowProxyNodeName(name)
     const nowHistories =
       proxyNodeMap.value[nowProxyNodeName]?.latencyTestHistory || {}
@@ -497,8 +520,18 @@ export const useProxiesStore = defineStore('proxies', () => {
     }
   }
 
-  const aliveNodeNames = (names: string[]): string[] =>
-    names.filter((name) => proxyNodeMap.value[name]?.alive === true)
+  const aliveNodeNames = (
+    names: string[],
+    testUrl?: string | null,
+    testType?: Proxy['testType'],
+  ): string[] =>
+    testUrl != null || (testType != null && testType !== 'default')
+      ? names.filter(
+          (name) =>
+            getLatencyByName(name, testUrl ?? null, testType) !==
+            configStore.latencyQualityMap.NOT_CONNECTED,
+        )
+      : names.filter((name) => proxyNodeMap.value[name]?.alive === true)
 
   const nodeNames = (): string[] => Object.keys(proxyNodeMap.value)
 
@@ -582,8 +615,9 @@ export const useProxiesStore = defineStore('proxies', () => {
     const currentProxyGroup = proxies.value.find(
       (item) => item.name === proxyGroupName,
     )
-    const finalTestUrl = configStore.resolveLatencyTestUrl(
+    const finalTestUrl = normalizeLatencyTestUrl(
       currentProxyGroup?.testUrl,
+      currentProxyGroup?.testType,
     )
     const memberNames = currentProxyGroup?.all ?? [proxyGroupName]
 
@@ -596,17 +630,33 @@ export const useProxiesStore = defineStore('proxies', () => {
       await fetchProxies()
       recordLatencyTestResults(results, finalTestUrl)
       nodeRecommendationStore.recordBatchResults(results)
-    } catch {
-      // Transport failure: leave latencyMap untouched (pills keep their last
-      // known values) and only record failure datapoints in history /
-      // recommendation so the bar/sparkline reflect the failed attempt.
+    } catch (error) {
+      const responseStatus =
+        typeof error === 'object' && error !== null && 'response' in error
+          ? (error as { response?: { status?: number } }).response?.status
+          : undefined
+      let stateRefreshed = false
+      if (responseStatus === 504) {
+        try {
+          await fetchProxies()
+          stateRefreshed = true
+        } catch {
+          /* empty */
+        }
+      }
+
+      // A backend 504 means every group member failed, so fetchProxies above
+      // replaces stale values with the backend state. For a transport failure,
+      // keep the last known values and only append failure datapoints.
       const failedDelay = configStore.latencyQualityMap.NOT_CONNECTED
       const failedResults: Record<string, number> = {}
       for (const memberName of memberNames) {
         const resolved = getNowProxyNodeName(memberName)
         if (!resolved) continue
         failedResults[resolved] = failedDelay
-        appendLatencyHistoryEntry(resolved, finalTestUrl, failedDelay)
+        if (!stateRefreshed) {
+          appendLatencyHistoryEntry(resolved, finalTestUrl, failedDelay)
+        }
       }
       nodeRecommendationStore.recordBatchResults(failedResults)
     } finally {

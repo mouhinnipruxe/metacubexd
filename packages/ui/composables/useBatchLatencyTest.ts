@@ -196,12 +196,12 @@ export function useBatchLatencyTest() {
     // otherwise its finally-block would reset the global progress mid-run.
     manageGlobalProgress = true,
   ): Promise<Record<string, number>> => {
-    // Resolve the per-group test url so "test all" honors latencyTestUrlSource
-    // (#2082): in 'core' mode each group probes against its own kernel testUrl
-    // instead of the single dashboard url shared by every group.
+    // Special test methods require the kernel URL; default tests still honor
+    // the dashboard URL-source preference.
     const group = proxiesStore.proxies.find((g) => g.name === groupName)
     const url =
-      options?.url ?? configStore.resolveLatencyTestUrl(group?.testUrl)
+      options?.url ??
+      configStore.resolveLatencyTestUrl(group?.testUrl, group?.testType)
     const timeout = options?.timeout ?? configStore.latencyTestTimeoutDuration
 
     // Don't pre-clear latencyMap — testProxyGroup swallows transport errors

@@ -33,11 +33,17 @@ const mockConfigStore = {
     HIGH: 500,
   },
   latencyTestTimeoutDuration: 5000,
+  latencyTestUrlSource: 'dashboard' as 'core' | 'dashboard',
   urlForLatencyTest: 'https://latency.test/default',
-  // Mirrors the real store's default ('core') resolution: a group's own
-  // testUrl wins, falling back to the dashboard url.
-  resolveLatencyTestUrl: (groupTestUrl?: string | null) =>
-    groupTestUrl || mockConfigStore.urlForLatencyTest,
+  resolveLatencyTestUrl: (
+    groupTestUrl?: string | null,
+    testType?: 'default' | 'docker-registry',
+  ) =>
+    testType && testType !== 'default'
+      ? groupTestUrl || mockConfigStore.urlForLatencyTest
+      : mockConfigStore.latencyTestUrlSource === 'dashboard'
+        ? mockConfigStore.urlForLatencyTest
+        : groupTestUrl || mockConfigStore.urlForLatencyTest,
 }
 
 vi.stubGlobal('useConfigStore', () => mockConfigStore)
@@ -72,6 +78,7 @@ describe('stores/proxies latency state', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    mockConfigStore.latencyTestUrlSource = 'core'
     recordTestResultMock.mockReset()
     recordBatchResultsMock.mockReset()
     apiMocks.fetchProxyProvidersAPI.mockResolvedValue({ providers: {} })
@@ -319,6 +326,82 @@ describe('stores/proxies latency state', () => {
     expect(bHistory[0]?.delay).toBe(0)
   })
 
+  it.each([
+    [
+      'docker-registry',
+      'https://registry-1.docker.io/v2/library/python/manifests/3.12-slim',
+    ],
+  ] as const)(
+    'refreshes %s group state when the backend reports that every node failed',
+    async (testType, testUrl) => {
+      apiMocks.proxyGroupLatencyTestAPI.mockRejectedValue({
+        response: { status: 504 },
+      })
+      apiMocks.fetchProxiesAPI.mockResolvedValue({
+        proxies: {
+          GROUP: proxy({
+            name: 'GROUP',
+            type: 'URLTest',
+            all: ['node-a', 'node-b'],
+            now: 'node-a',
+            testUrl,
+            testType,
+          }),
+          'node-a': proxy({
+            name: 'node-a',
+            alive: false,
+            extra: {
+              [testUrl]: {
+                alive: false,
+                history: [{ time: '2026-08-27T00:00:00.000Z', delay: 0 }],
+              },
+            },
+          }),
+          'node-b': proxy({
+            name: 'node-b',
+            alive: false,
+            extra: {
+              [testUrl]: {
+                alive: false,
+                history: [{ time: '2026-08-27T00:00:00.000Z', delay: 0 }],
+              },
+            },
+          }),
+        },
+      })
+
+      const store = useProxiesStore()
+      store.proxies = [
+        {
+          name: 'GROUP',
+          type: 'URLTest',
+          all: ['node-a', 'node-b'],
+          now: 'node-a',
+          testUrl,
+          testType,
+        } as never,
+      ]
+      store.__seed({
+        latency: {
+          'node-a': { [testUrl]: 88 },
+          'node-b': { [testUrl]: 120 },
+        },
+      })
+
+      await store.proxyGroupLatencyTest('GROUP')
+
+      expect(apiMocks.fetchProxiesAPI).toHaveBeenCalledTimes(1)
+      expect(store.getLatencyByName('node-a', testUrl, testType)).toBe(0)
+      expect(store.getLatencyByName('node-b', testUrl, testType)).toBe(0)
+      expect(
+        store.getLatencyHistoryByName('node-a', testUrl, testType),
+      ).toHaveLength(1)
+      expect(
+        store.getLatencyHistoryByName('node-b', testUrl, testType),
+      ).toHaveLength(1)
+    },
+  )
+
   it('batch-tests every provider node via the provider health-check endpoint', async () => {
     apiMocks.proxyLatencyTestAPI
       .mockResolvedValueOnce({ delay: 120 })
@@ -439,6 +522,32 @@ describe('stores/proxies latency state', () => {
     })
     expect(store.getLatencyByName('node-a', null)).toBe(120)
     expect(store.getLatencyByName('node-b', null)).toBe(0)
+  })
+
+  it("uses the group's own test url for a manual group latency test", async () => {
+    mockConfigStore.latencyTestUrlSource = 'dashboard'
+    apiMocks.proxyGroupLatencyTestAPI.mockResolvedValue({ 'node-a': 120 })
+    apiMocks.fetchProxiesAPI.mockResolvedValue({ proxies: {} })
+
+    const store = useProxiesStore()
+    store.proxies = [
+      {
+        name: 'REGISTRY',
+        type: 'URLTest',
+        all: ['node-a'],
+        testType: 'docker-registry',
+        testUrl: 'https://registry.test/v2/image/manifests/latest',
+        timeout: 6000,
+      } as never,
+    ]
+
+    await store.proxyGroupLatencyTest('REGISTRY')
+
+    expect(apiMocks.proxyGroupLatencyTestAPI).toHaveBeenCalledWith(
+      'REGISTRY',
+      'https://registry.test/v2/image/manifests/latest',
+      6000,
+    )
   })
 
   it('drops stale latency when fresh proxy data has no successful history', async () => {
@@ -664,6 +773,56 @@ describe('stores/proxies read model', () => {
     expect(store.aliveNodeNames(['a', 'b', 'missing'])).toEqual(['a'])
     expect(store.nodeNames().sort()).toEqual(['a', 'b'])
   })
+
+  it.each([
+    [
+      'docker-registry',
+      'https://registry-1.docker.io/v2/library/python/manifests/3.12-slim',
+    ],
+  ] as const)(
+    'uses the %s group result instead of the last unrelated health check',
+    async (testType, testUrl) => {
+      apiMocks.fetchProxiesAPI.mockResolvedValue({
+        proxies: {
+          GROUP: proxy({
+            name: 'GROUP',
+            type: 'Selector',
+            all: ['node-a', 'node-b'],
+            testUrl,
+            testType,
+          }),
+          'node-a': proxy({
+            name: 'node-a',
+            alive: false,
+            extra: {
+              [testUrl]: {
+                alive: true,
+                history: [{ time: '2026-08-27T00:00:00.000Z', delay: 88 }],
+              },
+            },
+          }),
+          'node-b': proxy({
+            name: 'node-b',
+            alive: true,
+            extra: {
+              [testUrl]: {
+                alive: false,
+                history: [{ time: '2026-08-27T00:00:00.000Z', delay: 0 }],
+              },
+            },
+          }),
+        },
+      })
+
+      const store = useProxiesStore()
+      await store.fetchProxies()
+      await nextTick()
+
+      expect(
+        store.aliveNodeNames(['node-a', 'node-b'], testUrl, testType),
+      ).toEqual(['node-a'])
+    },
+  )
 
   it('isTesting ORs node, provider and group flags', () => {
     const store = useProxiesStore()

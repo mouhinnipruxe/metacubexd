@@ -104,16 +104,15 @@ describe('connections display mode migration', () => {
   })
 })
 
-describe('resolveLatencyTestUrl (latencyTestUrlSource, #2082)', () => {
+describe('resolveLatencyTestUrl', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorageMock.clear()
   })
 
-  it("defaults to 'core': the group's testUrl wins, dashboard url is the fallback", () => {
+  it("uses the group's testUrl in core mode and falls back to the dashboard url", () => {
     const store = useConfigStore()
 
-    expect(store.latencyTestUrlSource).toBe('core')
     expect(store.resolveLatencyTestUrl('https://group.test/204')).toBe(
       'https://group.test/204',
     )
@@ -121,13 +120,33 @@ describe('resolveLatencyTestUrl (latencyTestUrlSource, #2082)', () => {
     expect(store.resolveLatencyTestUrl('')).toBe(store.urlForLatencyTest)
   })
 
-  it("in 'dashboard' mode the dashboard url always overrides the group testUrl", () => {
+  it('uses the dashboard URL for a default test in dashboard mode', () => {
     const store = useConfigStore()
     store.latencyTestUrlSource = 'dashboard'
 
     expect(store.resolveLatencyTestUrl('https://group.test/204')).toBe(
       store.urlForLatencyTest,
     )
-    expect(store.resolveLatencyTestUrl(null)).toBe(store.urlForLatencyTest)
+  })
+
+  it.each(['docker-registry'] as const)(
+    'does not override a %s group URL in dashboard mode',
+    (testType) => {
+      const store = useConfigStore()
+      store.latencyTestUrlSource = 'dashboard'
+
+      expect(
+        store.resolveLatencyTestUrl('https://group.test/special', testType),
+      ).toBe('https://group.test/special')
+    },
+  )
+
+  it('resets the URL source to core mode', () => {
+    const store = useConfigStore()
+    store.latencyTestUrlSource = 'dashboard'
+
+    store.resetProxiesSettings()
+
+    expect(store.latencyTestUrlSource).toBe('core')
   })
 })

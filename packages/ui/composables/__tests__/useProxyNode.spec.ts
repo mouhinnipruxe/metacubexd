@@ -103,4 +103,22 @@ describe('useProxyNode', () => {
 
     expect(spy).toHaveBeenCalledWith('leaf', 'subA', null, 3000)
   })
+
+  it('uses the group test when the node is rendered inside a proxy group', () => {
+    const store = useProxiesStore()
+    seedNode(store)
+    const nodeSpy = vi.spyOn(store, 'proxyLatencyTest')
+    const groupSpy = vi.spyOn(store, 'proxyGroupLatencyTest')
+
+    const vm = useProxyNode(
+      () => 'leaf',
+      () => 'https://registry.test/v2/image/manifests/latest',
+      () => 3000,
+      { providerName: () => 'subA', groupName: () => 'REGISTRY' },
+    )
+    vm.runLatencyTest()
+
+    expect(groupSpy).toHaveBeenCalledWith('REGISTRY')
+    expect(nodeSpy).not.toHaveBeenCalled()
+  })
 })

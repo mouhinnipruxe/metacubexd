@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import type { Proxy } from '~/types'
 import { PROXIES_PREVIEW_TYPE } from '~/constants'
 
 interface Props {
   proxyNameList: string[]
   testUrl: string | null
+  testType?: Proxy['testType']
   now?: string
   onSelect?: (name: string) => void
 }
@@ -43,12 +45,14 @@ const isShowDots = computed(() => {
       v-if="isShowBar"
       :proxy-name-list="proxyNameList"
       :test-url="testUrl"
+      :test-type="testType"
       :now="now"
     />
     <ProxyPreviewDots
       v-else-if="isShowDots"
       :proxy-name-list="proxyNameList"
       :test-url="testUrl"
+      :test-type="testType"
       :now="now"
       :on-select="onSelect"
     />

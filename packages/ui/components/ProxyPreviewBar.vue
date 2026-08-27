@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import type { Proxy } from '~/types'
 import { classifyLatency } from '~/utils'
 
 interface Props {
   proxyNameList: string[]
   testUrl: string | null
+  testType?: Proxy['testType']
   now?: string
 }
 
@@ -14,7 +16,7 @@ const configStore = useConfigStore()
 
 const latencyList = computed(() =>
   props.proxyNameList.map((name) =>
-    proxiesStore.getLatencyByName(name, props.testUrl),
+    proxiesStore.getLatencyByName(name, props.testUrl, props.testType),
   ),
 )
 
@@ -56,6 +58,11 @@ const notConnectedPercent = computed(
       />
     </div>
 
-    <Latency v-if="now" :proxy-name="now" :test-url="testUrl" />
+    <Latency
+      v-if="now"
+      :proxy-name="now"
+      :test-url="testUrl"
+      :test-type="testType"
+    />
   </div>
 </template>

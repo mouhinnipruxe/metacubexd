@@ -24,10 +24,13 @@ vi.mock('vue-sonner', () => ({ toast }))
 const mockConfigStore = {
   urlForLatencyTest: 'https://www.gstatic.com/generate_204',
   latencyTestTimeoutDuration: 5000,
-  // Mirrors the real store's default ('core') resolution: a group's own
-  // testUrl wins, falling back to the dashboard url.
-  resolveLatencyTestUrl: (groupTestUrl?: string | null) =>
-    groupTestUrl || mockConfigStore.urlForLatencyTest,
+  resolveLatencyTestUrl: (
+    groupTestUrl?: string | null,
+    testType?: 'default' | 'docker-registry',
+  ) =>
+    testType && testType !== 'default'
+      ? groupTestUrl || mockConfigStore.urlForLatencyTest
+      : mockConfigStore.urlForLatencyTest,
 }
 
 const mockNodeRecommendationStore = {
@@ -48,7 +51,12 @@ const mockProxiesStore: {
   recordLatencyTestResult: ReturnType<typeof vi.fn>
   recordLatencyTestResults: ReturnType<typeof vi.fn>
   proxyProviderLatencyTest: ReturnType<typeof vi.fn>
-  proxies: { name: string; all: string[]; testUrl?: string }[]
+  proxies: {
+    name: string
+    all: string[]
+    testUrl?: string
+    testType?: 'default' | 'docker-registry'
+  }[]
   proxyProviders: { name: string }[]
 } = {
   clearLatencyTestStateForGroup: vi.fn(),
@@ -327,10 +335,15 @@ describe('composables/useBatchLatencyTest', () => {
       )
     })
 
-    it("probes against the group's own testUrl in core mode (#2082)", async () => {
+    it("probes against a special group's own testUrl", async () => {
       mockJson.mockResolvedValue({ node1: 100 })
       mockProxiesStore.proxies = [
-        { name: 'group1', all: ['node1'], testUrl: 'https://group1.test/204' },
+        {
+          name: 'group1',
+          all: ['node1'],
+          testUrl: 'https://group1.test/registry',
+          testType: 'docker-registry',
+        },
       ]
 
       const { testGroupNodes } = useBatchLatencyTest()
@@ -341,7 +354,7 @@ describe('composables/useBatchLatencyTest', () => {
         'group/group1/delay',
         expect.objectContaining({
           searchParams: expect.objectContaining({
-            url: 'https://group1.test/204',
+            url: 'https://group1.test/registry',
           }),
         }),
       )

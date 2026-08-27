@@ -1,17 +1,21 @@
 <script setup lang="ts">
+import type { Proxy } from '~/types'
 import { IconCircleCheckFilled } from '@tabler/icons-vue'
 
 interface Props {
   proxyName: string
   testUrl: string | null
+  testType?: Proxy['testType']
   timeout: number | null
   isSelected?: boolean
   providerName?: string
+  groupName?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isSelected: false,
   providerName: '',
+  groupName: '',
 })
 
 const emit = defineEmits<{ click: [] }>()
@@ -20,7 +24,11 @@ const { proxyType, isUDP, runLatencyTest } = useProxyNode(
   () => props.proxyName,
   () => props.testUrl,
   () => props.timeout,
-  { providerName: () => props.providerName },
+  {
+    providerName: () => props.providerName,
+    groupName: () => props.groupName,
+    testType: () => props.testType,
+  },
 )
 </script>
 
@@ -62,7 +70,9 @@ const { proxyType, isUDP, runLatencyTest } = useProxyNode(
       <Latency
         :proxy-name="proxyName"
         :test-url="testUrl"
+        :test-type="testType"
         :provider-name="providerName"
+        :group-name="groupName"
         interactive
         @click.stop="runLatencyTest"
       />

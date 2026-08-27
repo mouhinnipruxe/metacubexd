@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { Proxy } from '~/types'
 import { IconCircleCheckFilled } from '@tabler/icons-vue'
 import dayjs from 'dayjs'
 import { getLatencyClassName } from '~/utils'
@@ -6,14 +7,17 @@ import { getLatencyClassName } from '~/utils'
 interface Props {
   proxyName: string
   testUrl: string | null
+  testType?: Proxy['testType']
   timeout: number | null
   isSelected?: boolean
   providerName?: string
+  groupName?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isSelected: false,
   providerName: '',
+  groupName: '',
 })
 
 const emit = defineEmits<{
@@ -35,7 +39,11 @@ const {
   () => props.proxyName,
   () => props.testUrl,
   () => props.timeout,
-  { providerName: () => props.providerName },
+  {
+    providerName: () => props.providerName,
+    groupName: () => props.groupName,
+    testType: () => props.testType,
+  },
 )
 
 // Anchor element for the lazily-mounted tooltip
@@ -173,7 +181,9 @@ onBeforeUnmount(() => {
           <Latency
             :proxy-name="proxyName"
             :test-url="testUrl"
+            :test-type="testType"
             :provider-name="providerName"
+            :group-name="groupName"
             :class="{ 'animate-pulse': isTesting }"
             interactive
             @click.stop="handleLatencyTest"

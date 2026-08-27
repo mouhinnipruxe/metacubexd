@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import type { Proxy } from '~/types'
 import { classifyLatency } from '~/utils'
 
 interface Props {
   proxyNameList: string[]
   testUrl: string | null
+  testType?: Proxy['testType']
   now?: string
   onSelect?: (name: string) => void
 }
@@ -16,7 +18,7 @@ const configStore = useConfigStore()
 const proxyLatencies = computed(() =>
   props.proxyNameList.map((name): [string, number] => [
     name,
-    proxiesStore.getLatencyByName(name, props.testUrl),
+    proxiesStore.getLatencyByName(name, props.testUrl, props.testType),
   ]),
 )
 
@@ -53,7 +55,12 @@ function getDotClass(latency: number | undefined, selected: boolean): string {
       />
     </div>
 
-    <Latency v-if="now" :proxy-name="now" :test-url="testUrl" />
+    <Latency
+      v-if="now"
+      :proxy-name="now"
+      :test-url="testUrl"
+      :test-type="testType"
+    />
   </div>
 </template>
 

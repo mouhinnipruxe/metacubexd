@@ -19,6 +19,7 @@ export interface Proxy {
   // user manually pinned. Empty/absent means the group is auto-selecting.
   fixed?: string
   testUrl?: string
+  testType?: 'default' | 'docker-registry'
   timeout?: number
 }
 
